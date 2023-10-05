@@ -44,6 +44,7 @@ This can be a messy and convoluted process. I needed to start here: https://lear
 I am using Ubuntu-22.04 and WSL 2 now.
 
 In order to write this guide into GitHub and track my work:
+
 Generate an ssh key pair
 ```
 ssh-keygen
@@ -66,18 +67,18 @@ Set vim as default editor (please die, Nano)
 sudo update-alternatives --config editor
 ```
 
-## Steps and Issues
-Create /tmp/learn-vault-pki
+## Demo Set up Steps and Issues
+1. Create /tmp/learn-vault-pki
 ```
 mkdir /tmp/learn-vault-pki
 ```
 
-Export /tmp/learn-vault-pki as HC_LEARN_LAB
+2. Export /tmp/learn-vault-pki as HC_LEARN_LAB
 ```
 export HC_LEARN_LAB=/tmp/learn-vault-pki
 ```
 
-Create a learn-vault Docker network
+3. Create a learn-vault Docker network
 ```
 docker network create \
     --driver=bridge \
@@ -85,10 +86,70 @@ docker network create \
     learn-vault
 ```
 
-Error
+4. Error
 ```
 Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
-This issue is complex, and the Docker-recommended workaround is to install Docker Desktop and configure it to use WSL.
+This issue is complex (and old). The Docker-recommended workaround is to remove all WSL-installed Docker versions, and install Docker Desktop and configure it to use WSL.
 https://docs.docker.com/desktop/wsl/
 
+## Deploy Caddy
+1. Pull the container image
+```
+docker pull caddy:latest
+```
+
+2. Make directories for caddy config and data
+```
+mkdir "$HC_LEARN_LAB"/caddy_config "$HC_LEARN_LAB"/caddy_data
+```
+
+3. Make Hello World file
+```
+echo "hello world" > "$HC_LEARN_LAB"/index.html
+```
+
+4. Run the caddy container
+```
+ docker run \
+    --name caddy-server \
+    --hostname caddy-server \
+    --network learn-vault \
+    --ip 10.1.1.200 \
+    --publish 80:80 \
+    --volume "$HC_LEARN_LAB"/index.html:/usr/share/caddy/index.html \
+    --volume "$HC_LEARN_LAB"/caddy_data:/data \
+    --detach \
+    --rm \
+    caddy
+```
+
+## Connect to HCP Vault 
+Set up a project and Vault cluster on HashiCorp Cloud Platform: https://portal.cloud.hashicorp.com
+
+Go to the Vault Cluster overview.
+Export the environment variables:
+```
+export VAULT_ADDR="https://pki-cluster-public-vault-<ID>.hashicorp.cloud:8200";
+export VAULT_NAMESPACE="admin"
+```
+
+Authenticate with AppRole and store the client token:
+```
+export VAULT_TOKEN=$(curl -s --header "X-Vault-Namespace: $VAULT_NAMESPACE" \
+    --request POST --data '{"role_id": "<role_id>", "secret_id": "<secret_id>"}' \
+     $VAULT_ADDR/v1/auth/approle/login | jq -r '.auth.client_token' )
+```
+
+Issue a leaf certificate from the AppRole, and save it to a file:
+```
+curl -s --header "X-Vault-Namespace: $VAULT_NAMESPACE" \
+    --header "X-Vault-Token: $VAULT_TOKEN" -X PUT \
+    -d '{"common_name":"hcp-magic.example.com"}' \
+    $VAULT_ADDR/v1/example-pki/issue/my-first-vault-cert | jq -r ".data.certificate" > example-cert.pem
+```
+
+Check the certficate:
+```
+openssl x509 -in example-cert.pem -text -noout
+```
