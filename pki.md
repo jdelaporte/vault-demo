@@ -16,10 +16,16 @@ curl CLI installed and in PATH
 `which curl`
 
 Docker installed
-`sudo apt install docker.io`
-`which docker`
+Don't do this: `sudo apt install docker.io`
+`docker --version`
+
+Instead, install Docker Desktop for Windows, and set it up to use WSL 2.
+https://docs.docker.com/desktop/wsl/
+`apt-get purge docker.io`
+
 
 jq installed and in system PATH
+`sudo apt install jq`
 `which jq`
 
 ### On Windows, before all that
@@ -41,4 +47,21 @@ Clone this repo locally
 
 Set vim as default editor (please die, Nano)
 `sudo update-alternatives --config editor`
+
+## Steps and Issues
+Create /tmp/learn-vault-pki
+`mkdir /tmp/learn-vault-pki`
+
+Export /tmp/learn-vault-pki as HC_LEARN_LAB
+`export HC_LEARN_LAB=/tmp/learn-vault-pki`
+
+Create a learn-vault Docker network
+```docker network create \
+    --driver=bridge \
+    --subnet=10.1.1.0/24 \
+    learn-vault
+```
+Error: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+This issue is complex, and the Docker-recommended workaround is to install Docker Desktop and configure it to use WSL.
+https://docs.docker.com/desktop/wsl/
 
