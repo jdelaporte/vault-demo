@@ -2,7 +2,7 @@
 From https://developer.hashicorp.com/vault/tutorials/secrets-management/pki-acme-caddy
 
 ## Prerequisites
-Vault CL installed and in PATH
+* Vault CL installed and in PATH
 
 ```
 wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
@@ -12,10 +12,10 @@ sudo apt update && sudo apt install vault
 
 `which vault` 
 
-curl CLI installed and in PATH
+* curl CLI installed and in PATH
 `which curl`
 
-Docker installed
+* Docker installed
 Don't do this: `sudo apt install docker.io`
 `docker --version`
 
@@ -24,7 +24,7 @@ https://docs.docker.com/desktop/wsl/
 `apt-get purge docker.io`
 
 
-jq installed and in system PATH
+* jq installed and in system PATH
 `sudo apt install jq`
 `which jq`
 
