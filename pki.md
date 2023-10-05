@@ -36,24 +36,24 @@ I am using Ubuntu-22.04 and WSL 2 now.
 
 In order to write this guide into GitHub and track my work:
 Generate an ssh key pair
-`ssh-keygen`
+```ssh-keygen```
 
 Add public key to GitHub
-`cat ~/.ssh/id_rsa.pub` and copy/paste into user Settings -> SSH and GPG Keys -> New SSH key
+```cat ~/.ssh/id_rsa.pub``` and copy/paste into user Settings -> SSH and GPG Keys -> New SSH key
 
 Clone this repo locally
-`cd $HOME/gitstuff`
-`git clone git@github.com:jdelaporte/vault-demo.git`
+```cd $HOME/gitstuff
+git clone git@github.com:jdelaporte/vault-demo.git```
 
 Set vim as default editor (please die, Nano)
-`sudo update-alternatives --config editor`
+```sudo update-alternatives --config editor```
 
 ## Steps and Issues
 Create /tmp/learn-vault-pki
-`mkdir /tmp/learn-vault-pki`
+```mkdir /tmp/learn-vault-pki```
 
 Export /tmp/learn-vault-pki as HC_LEARN_LAB
-`export HC_LEARN_LAB=/tmp/learn-vault-pki`
+```export HC_LEARN_LAB=/tmp/learn-vault-pki```
 
 Create a learn-vault Docker network
 ```docker network create \
