@@ -8,6 +8,7 @@ https://developer.hashicorp.com/vault/tutorials/app-integration/application-inte
 * PostgreSQL (postgres Docker container works)
 * jq
 * ngrok installed and configured with an auth token (HCP Vault only)
+* consul-template
 
 ## Set up Postgres
 
@@ -80,3 +81,71 @@ vault write database/config/postgresql \
       password=rootpassword
 ```
 
+Create file that defines a Vault role
+```
+tee readonly.sql <<EOF
+CREATE ROLE "{{name}}" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{{name}}";
+EOF
+```
+
+Create the Vault role:
+```
+vault write database/roles/readonly db_name=postgresql \
+        creation_statements=@readonly.sql \
+        default_ttl=1h max_ttl=24h
+```
+
+View the Vault Role:
+```
+vault read database/roles/readonly
+```
+
+## Consul Template - Vault Client Config
+Create a policy file for Consul Template.
+This allows the vault client to read the credentials under the readonly role, and to renew leases for the (which) role(s)?
+```
+tee db_creds.hcl <<EOF
+path "database/creds/readonly" {
+  capabilities = [ "read" ]
+}
+
+path "sys/leases/renew" {
+  capabilities = [ "update" ]
+}
+EOF
+```
+
+Create the policy from the file:
+```
+vault policy write db_creds db_creds.hcl
+```
+
+Create a token from the policy created for the consul template
+```
+DB_TOKEN=$(vault token create -policy="db_creds" -format json | jq -r '.auth | .client_token')
+```
+
+## Consul Template - DB Config
+Create a Consul Template file
+```
+$ tee config.yml.tpl <<EOF
+---
+{{- with secret "database/creds/readonly" }}
+username: "{{ .Data.username }}"
+password: "{{ .Data.password }}"
+database: "myapp"
+{{- end }}
+EOF
+```
+
+Create a db config file from the consul template, and verify
+```
+$ VAULT_TOKEN=$DB_TOKEN consul-template \
+        -template="config.yml.tpl:config.yml" -once
+
+$ cat config.yml
+```
+
+## Set up Envconsul to Retrieve DB credentials
+https://developer.hashicorp.com/vault/tutorials/app-integration/application-integration#step-4-use-envconsul-to-retrieve-db-credentials
