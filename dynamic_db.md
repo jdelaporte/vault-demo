@@ -9,6 +9,7 @@ https://developer.hashicorp.com/vault/tutorials/app-integration/application-inte
 * jq
 * ngrok installed and configured with an auth token (HCP Vault only)
 * consul-template
+* postgresql-client on local demo system
 
 ## Set up Postgres
 
@@ -68,7 +69,7 @@ export POSTGRES_URL=127.0.0.1:5432
 vault secrets enable database
 ```
 
-Configure a postgesql secrets engine.
+Configure a postgresql secrets engine.
 This step also verifies the connection.
 If your Vault cluster cannot reach or authenticate to your database, it will fail.
 If your database doesn't exist, it will fail.
@@ -90,6 +91,8 @@ EOF
 ```
 
 Create the Vault role:
+
+The `db_name` value *must match* the database secrets engine object created earlier.
 ```
 vault write database/roles/readonly db_name=postgresql \
         creation_statements=@readonly.sql \
@@ -99,6 +102,11 @@ vault write database/roles/readonly db_name=postgresql \
 View the Vault Role:
 ```
 vault read database/roles/readonly
+```
+
+Create/retrieve a credential from the role:
+```
+vault read database/creds/readonly
 ```
 
 ## Consul Template - Vault Client Config
@@ -149,3 +157,13 @@ $ cat config.yml
 
 ## Set up Envconsul to Retrieve DB credentials
 https://developer.hashicorp.com/vault/tutorials/app-integration/application-integration#step-4-use-envconsul-to-retrieve-db-credentials
+
+
+## Extra Credit: Secure Postgresql Root Password
+https://developer.hashicorp.com/vault/tutorials/db-credentials/database-root-rotation
+Rotate the root credential easily with the `rotate-root` Vault path.
+Use the same secrets engine endpoint (eg; postgresql).
+Be sure to create a different superuser in the db first.
+```
+vault write - force database/rotate-root/postgresql
+```
