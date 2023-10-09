@@ -3,13 +3,14 @@ From https://developer.hashicorp.com/vault/tutorials/db-credentials/database-sec
 and 
 https://developer.hashicorp.com/vault/tutorials/app-integration/application-integration
 
-
+## Prerequisites
 * HCP or Vault Community Edition environment
 * PostgreSQL (postgres Docker container works)
 * jq
 * ngrok installed and configured with an auth token (HCP Vault only)
-* consul-template
-* postgresql-client on local demo system
+* consul-template apt package
+* envconsul apt package
+* postgresql-client apt package
 
 ## Set up Postgres
 
@@ -179,6 +180,27 @@ $ cat config.yml
 ## Set up Envconsul to Retrieve DB credentials
 https://developer.hashicorp.com/vault/tutorials/app-integration/application-integration#step-4-use-envconsul-to-retrieve-db-credentials
 
+
+Create a micro app that reads environment variables
+```
+tee app.sh <<EOF
+#!/usr/bin/env bash
+
+cat <<EOT
+My connection info is:
+
+username: "\${DATABASE_CREDS_READONLY_USERNAME}"
+password: "\${DATABASE_CREDS_READONLY_PASSWORD}"
+database: "my-app"
+EOT
+EOF
+chmod +x app.sh
+```
+
+Run envconsul to test database credentials from readonly role
+```
+VAULT_TOKEN=$DB_TOKEN envconsul -upcase -secret database/creds/readonly ./app.sh
+```
 
 ## Extra Credit: Secure Postgresql Root Password
 https://developer.hashicorp.com/vault/tutorials/db-credentials/database-root-rotation
