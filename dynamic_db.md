@@ -109,6 +109,27 @@ Create/retrieve a credential from the role:
 vault read database/creds/readonly
 ```
 
+List the generated leases for the database role:
+```
+vault list sys/leases/lookup/database/creds/readonly
+```
+
+
+## Verify the Role(s) in Postgres
+Connect to postgresql as an admin user:
+```
+psql -h <host> -d <database> -U <user> -p <port>
+```
+or, if running container you can use this to connect:
+```
+docker exec -ti <container-name> psql -d postgres -U <user>
+```
+
+Then run the query to list roles:
+```
+SELECT rolname FROM pg_roles;
+```
+
 ## Consul Template - Vault Client Config
 Create a policy file for Consul Template.
 This allows the vault client to read the credentials under the readonly role, and to renew leases for the (which) role(s)?
@@ -161,9 +182,10 @@ https://developer.hashicorp.com/vault/tutorials/app-integration/application-inte
 
 ## Extra Credit: Secure Postgresql Root Password
 https://developer.hashicorp.com/vault/tutorials/db-credentials/database-root-rotation
+
 Rotate the root credential easily with the `rotate-root` Vault path.
 Use the same secrets engine endpoint (eg; postgresql).
-Be sure to create a different superuser in the db first.
+The user's password will no longer be retrievable. Be sure to create a different superuser in the db and set it up in the Vault config for the database endpoint *first*.
 ```
 vault write - force database/rotate-root/postgresql
 ```
