@@ -72,7 +72,8 @@ vault secrets enable database
 
 Configure a postgresql secrets engine.
 This step also verifies the connection.
-If your Vault cluster cannot reach or authenticate to your postgresql server, it will fail.
+If your Vault cluster cannot reach your postgresql server, it will fail.
+If the user (`db_admin_vault`) cannot authenticate or is not authorized on the database (`demoapp`), this will fail.
 If your database (example here: `demoapp`) doesn't exist, it will fail.
 ```
 vault write database/config/postgresql \
