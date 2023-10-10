@@ -250,12 +250,10 @@ template {
 ## Extra Credit: Secure Postgresql Root Password
 https://developer.hashicorp.com/vault/tutorials/db-credentials/database-root-rotation
 
-Rotate the root credential easily with the `rotate-root` Vault path.
-Use the same secrets engine endpoint (eg; postgresql).
+The admin/root user's password will no longer be retrievable. Vault will cache and rotate it, but not return it for external use.
 
-The admin/root user's password will no longer be retrievable. 
+Be sure to create a different superuser in the db and set it up in the Vault config for the database endpoint *first*. You may need to take steps like the following. 
 
-Be sure to create a different superuser in the db and set it up in the Vault config for the database endpoint *first*.
 From stack overflow (https://stackoverflow.com/a/53849271):
 
     Transfer ownership of the database and all schemas and objects in it to the new user.
@@ -270,10 +268,12 @@ From stack overflow (https://stackoverflow.com/a/53849271):
 ```
 CREATE USER db_admin_vault CREATEROLE;
 ALTER USER db_admin_vault WITH PASSWORD 'insecure_password';
-
+ALTER DATABASE demoapp OWNER TO db_admin_vault;
+REVOKE CONNECT ON DATABASE demoapp FROM PUBLIC;
 ```
 
-
+Rotate the root credential easily with the `rotate-root` Vault path.
+Use the same secrets engine endpoint (eg; postgresql).
 ```
 vault write - force database/rotate-root/postgresql
 ```
