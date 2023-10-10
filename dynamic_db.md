@@ -72,28 +72,29 @@ vault secrets enable database
 
 Configure a postgresql secrets engine.
 This step also verifies the connection.
-If your Vault cluster cannot reach or authenticate to your database, it will fail.
-If your database doesn't exist, it will fail.
+If your Vault cluster cannot reach or authenticate to your postgresql server, it will fail.
+If your database (example here: `demoapp`) doesn't exist, it will fail.
 ```
 vault write database/config/postgresql \
       plugin_name=postgresql-database-plugin \
       allowed_roles=readonly \
-      connection_url="postgresql://{{username}}:{{password}}@$POSTGRES_URL/myapp?sslmode=disable" \
-      username=root \
-      password=rootpassword
+      connection_url="postgresql://{{username}}:{{password}}@$POSTGRES_URL/demoapp?sslmode=disable" \
+      username=db_admin_vault \
+      password=insecure_password
 ```
 
 Create file that defines a Vault role
 ```
 tee readonly.sql <<EOF
 CREATE ROLE "{{name}}" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
+GRANT CONNECT ON DATABASE demoapp TO "{{name}}";
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{{name}}";
 EOF
 ```
 
 Create the Vault role:
 
-The `db_name` value *must match* the database secrets engine object created earlier.
+The `db_name` value *must match* the database secrets engine object created earlier (not the postgres database). In this example, it is `postgresql`.
 ```
 vault write database/roles/readonly db_name=postgresql \
         creation_statements=@readonly.sql \
@@ -250,7 +251,28 @@ https://developer.hashicorp.com/vault/tutorials/db-credentials/database-root-rot
 
 Rotate the root credential easily with the `rotate-root` Vault path.
 Use the same secrets engine endpoint (eg; postgresql).
-The user's password will no longer be retrievable. Be sure to create a different superuser in the db and set it up in the Vault config for the database endpoint *first*.
+
+The admin/root user's password will no longer be retrievable. 
+
+Be sure to create a different superuser in the db and set it up in the Vault config for the database endpoint *first*.
+From stack overflow (https://stackoverflow.com/a/53849271):
+
+    Transfer ownership of the database and all schemas and objects in it to the new user.
+
+    Give the user CREATEROLE.
+
+    Make sure to REVOKE CONNECT ON all databases FROM PUBLIC. Grant the new user the CONNECT privilege on the database in question.
+
+    Don't give the new user any permissions on other databases or objects therein.
+
+
+```
+CREATE USER db_admin_vault CREATEROLE;
+ALTER USER db_admin_vault WITH PASSWORD 'insecure_password';
+
+```
+
+
 ```
 vault write - force database/rotate-root/postgresql
 ```
