@@ -171,10 +171,10 @@ EOF
 
 Create a db config file from the consul template, and verify
 ```
-$ VAULT_TOKEN=$DB_TOKEN consul-template \
+VAULT_TOKEN=$DB_TOKEN consul-template \
         -template="config.yml.tpl:config.yml" -once
 
-$ cat config.yml
+cat config.yml
 ```
 
 ## Set up Envconsul to Retrieve DB credentials
@@ -200,6 +200,49 @@ chmod +x app.sh
 Run envconsul to test database credentials from readonly role
 ```
 VAULT_TOKEN=$DB_TOKEN envconsul -upcase -secret database/creds/readonly ./app.sh
+```
+
+## Vault Agent with Auto-auth
+There are many ways to authenticate the Vault agent. The simplest is the token file, but it is only for development. 
+
+### Auto-auth with token file
+From https://developer.hashicorp.com/vault/docs/agent-and-proxy/autoauth/methods/token_file
+
+```
+pid_file = "./pidfile"
+
+vault {
+  address = "https://127.0.0.1:8200"
+}
+
+auto_auth {
+  method {
+    type = "token_file"
+
+    config = {
+      token_file_path = "/home/username/.vault-token"
+    }
+  }
+}
+
+api_proxy {
+  use_auto_auth_token = true
+}
+
+listener "tcp" {
+  address = "127.0.0.1:8100"
+  tls_disable = true
+}
+
+template {
+  source      = "/etc/vault/server.key.ctmpl"
+  destination = "/etc/vault/server.key"
+}
+
+template {
+  source      = "/etc/vault/server.crt.ctmpl"
+  destination = "/etc/vault/server.crt"
+}
 ```
 
 ## Extra Credit: Secure Postgresql Root Password
