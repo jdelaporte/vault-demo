@@ -155,6 +155,7 @@ vault policy write db_creds db_creds.hcl
 
 Create a token from the policy created for the consul template
 ```
+export VAULT_ADDR=http://127.0.0.1:8200   <---- if using an insecure dev client connection
 DB_TOKEN=$(vault token create -policy="db_creds" -format json | jq -r '.auth | .client_token')
 ```
 
@@ -166,13 +167,15 @@ $ tee config.yml.tpl <<EOF
 {{- with secret "database/creds/readonly" }}
 username: "{{ .Data.username }}"
 password: "{{ .Data.password }}"
-database: "myapp"
+database: "demoapp"
 {{- end }}
 EOF
 ```
 
 Create a db config file from the consul template, and verify
+
 ```
+export VAULT_ADDR=http://127.0.0.1:8200  <---- if using an insecure dev client connection
 VAULT_TOKEN=$DB_TOKEN consul-template \
         -template="config.yml.tpl:config.yml" -once
 
@@ -193,14 +196,15 @@ My connection info is:
 
 username: "\${DATABASE_CREDS_READONLY_USERNAME}"
 password: "\${DATABASE_CREDS_READONLY_PASSWORD}"
-database: "my-app"
+database: "demoapp"
 EOT
 EOF
 chmod +x app.sh
 ```
 
-Run envconsul to test database credentials from readonly role
+Run envconsul to retrieve database credentials from the readonly role
 ```
+export VAULT_ADDR=http://127.0.0.1:8200  <---- 
 VAULT_TOKEN=$DB_TOKEN envconsul -upcase -secret database/creds/readonly ./app.sh
 ```
 
@@ -260,11 +264,12 @@ From stack overflow (https://stackoverflow.com/a/53849271):
 
     Give the user CREATEROLE.
 
-    Make sure to REVOKE CONNECT ON all databases FROM PUBLIC. Grant the new user the CONNECT privilege on the database in question.
+    Make sure to REVOKE CONNECT ON DATABASE <db> FROM PUBLIC. 
+    Grant the new user the CONNECT privilege on the database in question.
 
     Don't give the new user any permissions on other databases or objects therein.
 
-
+I used these steps:
 ```
 CREATE USER db_admin_vault CREATEROLE;
 ALTER USER db_admin_vault WITH PASSWORD 'insecure_password';
@@ -272,8 +277,19 @@ ALTER DATABASE demoapp OWNER TO db_admin_vault;
 REVOKE CONNECT ON DATABASE demoapp FROM PUBLIC;
 ```
 
+Go through the steps above to verify that Vault can still create credentials.
+Sanity check from Vault
+```
+vault read database/creds/readonly
+```
+
+If you see the following error, you need to change ownership of tables/schema to the new admin user that can CREATE ROLES in postgres:
+```
+        * failed to execute query: ERROR: permission denied for table appusers (SQLSTATE 42501)
+```
+
 Rotate the root credential easily with the `rotate-root` Vault path.
 Use the same secrets engine endpoint (eg; postgresql).
 ```
-vault write - force database/rotate-root/postgresql
+vault write -force database/rotate-root/postgresql
 ```

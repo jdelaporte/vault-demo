@@ -5,5 +5,5 @@ My connection info is:
 
 username: "${DATABASE_CREDS_READONLY_USERNAME}"
 password: "${DATABASE_CREDS_READONLY_PASSWORD}"
-database: "my-app"
+database: "demoapp"
 EOT
