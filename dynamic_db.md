@@ -75,25 +75,28 @@ This step also verifies the connection.
 If your Vault cluster cannot reach your postgresql server, it will fail.
 If the user (`db_admin_vault`) cannot authenticate or is not authorized on the database (`demoapp`), this will fail.
 If your database (example here: `demoapp`) doesn't exist, it will fail.
+You will need to remember the secrets engine path endpoint for the later steps (`postgresql` in this example)
 ```
 vault write database/config/postgresql \
       plugin_name=postgresql-database-plugin \
-      allowed_roles=readonly \
+      allowed_roles=readonly,pg_readwrite \
       connection_url="postgresql://{{username}}:{{password}}@$POSTGRES_URL/demoapp?sslmode=disable" \
       username=db_admin_vault \
-      password=insecure_password
+      password=insecure_password   <------ After rotating root pass, leave out this param         
 ```
 
-Create file that defines a Vault role
+## Create a Read Only Database User Role
+Create file that defines a Vault role to create a read only postgres user:
 ```
 tee readonly.sql <<EOF
 CREATE ROLE "{{name}}" WITH LOGIN PASSWORD '{{password}}' VALID UNTIL '{{expiration}}';
+COMMENT on ROLE "{{name}}" IS 'Role managed by Vault';
 GRANT CONNECT ON DATABASE demoapp TO "{{name}}";
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO "{{name}}";
 EOF
 ```
 
-Create the Vault role:
+Create the Vault role which can create credentials for readonly postgres users:
 
 The `db_name` value *must match* the database secrets engine object created earlier (not the postgres database). In this example, it is `postgresql`.
 ```
@@ -112,9 +115,34 @@ Create/retrieve a credential from the role:
 vault read database/creds/readonly
 ```
 
-List the generated leases for the database role:
+List the generated leases for the readonly database role:
 ```
 vault list sys/leases/lookup/database/creds/readonly
+```
+
+## Create a Database User Role with more Privileges
+Create the Vault role which can create credentials for read-write postgres users:
+
+The `db_name` value *must match* the database secrets engine object created earlier (not the postgres database). In this example, it is `postgresql`.
+```
+vault write database/roles/pg_readwrite db_name=postgresql \
+        creation_statements=@readwrite.sql \
+        default_ttl=10m max_ttl=24h
+```
+
+View the Vault Role:
+```
+vault read database/roles/pg_readwrite
+```
+
+Create/retrieve a credential from the role:
+```
+vault read database/creds/pg_readwrite
+```
+
+List the generated leases for the readonly database role:
+```
+vault list sys/leases/lookup/database/creds/pg_readwrite
 ```
 
 
@@ -134,10 +162,10 @@ SELECT rolname FROM pg_roles;
 ```
 
 ## Consul Template - Vault Client Config
-Create a policy file for Consul Template.
+Create a policy file for readonly db access  via Consul Template.
 This allows the vault client to read the credentials under the readonly role, and to renew leases for the (which) role(s)?
 ```
-tee db_creds.hcl <<EOF
+tee pg_ro_pol.hcl <<EOF
 path "database/creds/readonly" {
   capabilities = [ "read" ]
 }
@@ -150,19 +178,19 @@ EOF
 
 Create the policy from the file:
 ```
-vault policy write db_creds db_creds.hcl
+vault policy write pg_ro pg_ro_pol.hcl
 ```
 
 Create a token from the policy created for the consul template
 ```
 export VAULT_ADDR=http://127.0.0.1:8200   <---- if using an insecure dev client connection
-DB_TOKEN=$(vault token create -policy="db_creds" -format json | jq -r '.auth | .client_token')
+DB_TOKEN=$(vault token create -policy="pg_ro" -format json | jq -r '.auth | .client_token')
 ```
 
-## Consul Template - DB Config
+## Consul Template - DB Config (Readonly Role)
 Create a Consul Template file
 ```
-$ tee config.yml.tpl <<EOF
+$ tee pg_ro_config.yml.tpl <<EOF
 ---
 {{- with secret "database/creds/readonly" }}
 username: "{{ .Data.username }}"
@@ -172,17 +200,17 @@ database: "demoapp"
 EOF
 ```
 
-Create a db config file from the consul template, and verify
+Create a readonly db config file from the consul template, and verify
 
 ```
-export VAULT_ADDR=http://127.0.0.1:8200  <---- if using an insecure dev client connection
+export VAULT_ADDR=http://127.0.0.1:8200  <---- Replace with your Vault cluster URL 
 VAULT_TOKEN=$DB_TOKEN consul-template \
-        -template="config.yml.tpl:config.yml" -once
+        -template="pg_ro_config.yml.tpl:pg_ro_config.yml" -once
 
-cat config.yml
+cat pg_ro_config.yml
 ```
 
-## Set up Envconsul to Retrieve DB credentials
+## Set up Envconsul to Retrieve DB credentials (Readonly Role)
 https://developer.hashicorp.com/vault/tutorials/app-integration/application-integration#step-4-use-envconsul-to-retrieve-db-credentials
 
 
@@ -194,7 +222,7 @@ tee app.sh <<EOF
 cat <<EOT
 My connection info is:
 
-username: "\${DATABASE_CREDS_READONLY_USERNAME}"
+username: "\${DATABASE_CREDS_READONLY_USERNAME}"   <---- How does this handle role names with underscores?
 password: "\${DATABASE_CREDS_READONLY_PASSWORD}"
 database: "demoapp"
 EOT
@@ -250,6 +278,39 @@ template {
   destination = "/etc/vault/server.crt"
 }
 ```
+## Extra Credit: Set up AppRole
+Enable the approle auth method
+```
+vault auth enable -path=demoapp approle
+```
+
+Create a role for granting read-write creds to postgres:
+
+? - How do I attach a policy to this auth method to restrict access to the read-write postgres database secrets engine path?
+
+```
+vault write auth/demoapp/role/pg_rw \
+    secret_id_ttl=10m \
+    token_num_uses=0 \    <---- Must be 0 to create child tokens!
+    token_ttl=20m \
+    token_max_ttl=30m \
+    secret_id_num_uses=0 \
+    token_policies=@pg_rw_pol.hcl
+```
+
+Get the RoleID
+```
+vault read auth/demoapp/role/pg_rw/role-id
+```
+
+Get a SecretID from the AppRole
+```
+vault write -f auth/demoapp/role/pg_rw/secret-id
+```
+
+### Auto-auth with AppRole
+
+
 
 ## Extra Credit: Secure Postgresql Root Password
 https://developer.hashicorp.com/vault/tutorials/db-credentials/database-root-rotation
