@@ -284,6 +284,11 @@ Enable the approle auth method
 vault auth enable -path=demoapp approle
 ```
 
+Create a policy to apply to the AppRole
+```
+vault policy write demoapp_pg_rw pg_rw_pol.hcl
+```
+
 Create a role for granting read-write creds to postgres:
 
 ? - How do I attach a policy to this auth method to restrict access to the read-write postgres database secrets engine path?
@@ -295,7 +300,7 @@ vault write auth/demoapp/role/pg_rw \
     token_ttl=20m \
     token_max_ttl=30m \
     secret_id_num_uses=0 \
-    token_policies=@pg_rw_pol.hcl
+    token_policies=demoapp_pg_rw
 ```
 
 Get the RoleID
@@ -309,8 +314,24 @@ vault write -f auth/demoapp/role/pg_rw/secret-id
 ```
 
 ### Auto-auth with AppRole
+```
+vault agent -config agent-approle.hcl  <---- Getting permission denied.
+```
 
+It's trying to access `http://127.0.0.1:8200/v1/auth/approle/login` rather than the path configured for the role-id. Need to specify path in the agent when customized auth engine path is used.
 
+Another error
+```
+vault write auth/demoapp/role/pg_rw/login role_id=007932a8-d695-b073-0d3e-db82ccfaf8eb secret_id=3e83e50b-e22d-e2b8-ca2c-3dded1d8e812
+Error writing data to auth/demoapp/role/pg_rw/login: Error making API request.
+
+URL: PUT http://127.0.0.1:8200/v1/auth/demoapp/role/pg_rw/login
+Code: 404. Errors:
+
+* 1 error occurred:
+        * unsupported path
+
+```
 
 ## Extra Credit: Secure Postgresql Root Password
 https://developer.hashicorp.com/vault/tutorials/db-credentials/database-root-rotation
