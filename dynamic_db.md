@@ -27,7 +27,7 @@ docker run \
     -e POSTGRES_USER=root \
     -e POSTGRES_PASSWORD=rootpassword \
     -p 5432:5432 \
-    --rm \
+    -v ~/psql/data:/var/lib/pgsql/data \
     postgres
 ```
 
@@ -62,7 +62,6 @@ In a new terminal, set up the env
 ```
 export VAULT_ADDR=http://127.0.0.1:8200
 export VAULT_TOKEN=root
-export POSTGRES_URL=127.0.0.1:5432
 ```
 
 ## Set up database secrets engine
@@ -72,17 +71,20 @@ vault secrets enable database
 
 Configure a postgresql secrets engine.
 This step also verifies the connection.
-If your Vault cluster cannot reach your postgresql server, it will fail.
-If the user (`db_admin_vault`) cannot authenticate or is not authorized on the database (`demoapp`), this will fail.
-If your database (example here: `demoapp`) doesn't exist, it will fail.
-You will need to remember the secrets engine path endpoint for the later steps (`postgresql` in this example)
+* If your Vault cluster cannot reach your postgresql server, it will fail.
+* If the user (`db_admin_vault`) cannot authenticate to the db cluster or is not authorized on the database (`demoapp`), this will fail.
+* If your database (example here: `demoapp`) doesn't exist, it will fail.
+
+You will need to remember the secrets engine path endpoint for the later steps (`postgresql` in this example).
+After rotating root password, leave out the `password` parameter.
 ```
+export POSTGRES_URL=127.0.0.1:5432
 vault write database/config/postgresql \
       plugin_name=postgresql-database-plugin \
       allowed_roles=readonly,pg_readwrite \
       connection_url="postgresql://{{username}}:{{password}}@$POSTGRES_URL/demoapp?sslmode=disable" \
       username=db_admin_vault \
-      password=insecure_password   <------ After rotating root pass, leave out this param         
+      password=insecure_password       
 ```
 
 ## Create a Read Only Database User Role
@@ -145,6 +147,11 @@ List the generated leases for the readonly database role:
 vault list sys/leases/lookup/database/creds/pg_readwrite
 ```
 
+Revoke a leased credential if needed:
+```
+vault lease revoke database/creds/readonly/SbWxMMXRqvOCF2ONRMsyD42l
+```
+
 
 ## Verify the Role(s) in Postgres
 Connect to postgresql as an admin user:
@@ -158,6 +165,7 @@ docker exec -ti <container-name> psql -d postgres -U <user>
 
 Then run the query to list roles:
 ```
+\du
 SELECT rolname FROM pg_roles;
 ```
 
@@ -286,21 +294,22 @@ vault auth enable -path=demoapp approle
 
 Create a policy to apply to the AppRole
 ```
-vault policy write demoapp_pg_rw pg_rw_pol.hcl
+vault policy write pg_rw pg_rw_pol.hcl
 ```
 
 Create a role for granting read-write creds to postgres:
 
 ? - How do I attach a policy to this auth method to restrict access to the read-write postgres database secrets engine path? Use `token_policies` parameter.
+`token_num_uses` must be 0 to create child tokens.
 
 ```
 vault write auth/demoapp/role/pg_rw \
     secret_id_ttl=10m \
-    token_num_uses=0 \    <---- Must be 0 to create child tokens!
+    token_num_uses=0 \
     token_ttl=20m \
     token_max_ttl=30m \
     secret_id_num_uses=0 \
-    token_policies=demoapp_pg_rw
+    token_policies=pg_rw
 ```
 
 Get the RoleID
@@ -315,10 +324,10 @@ vault write -f auth/demoapp/role/pg_rw/secret-id
 
 ### Auto-auth with AppRole
 ```
-vault agent -config agent-approle.hcl  <---- Getting permission denied.
+vault agent -config agent_approle.hcl  <---- Getting permission denied.
 ```
 
-It's trying to access `http://127.0.0.1:8200/v1/auth/approle/login` rather than the path configured for the role-id. Need to specify path in the agent when customized auth engine path is used.
+It was trying to access `http://127.0.0.1:8200/v1/auth/approle/login` rather than the path configured for the role-id. Need to specify path in the agent when customized auth engine path is used.
 
 Another error
 ```

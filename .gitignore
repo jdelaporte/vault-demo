@@ -3,3 +3,5 @@ vault-token
 roleid
 secretid
 *output.yml
+*config.yml
+pidfile
