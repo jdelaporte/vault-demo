@@ -8,7 +8,7 @@ auto_auth {
   method {
     type      = "approle"
 
-    mount_path = "auth/demoapp/role/pg_rw"
+    mount_path = "auth/demoapp"
     config = {
       role_id_file_path = "roleid"
       secret_id_file_path = "secretid"

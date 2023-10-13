@@ -291,7 +291,7 @@ vault policy write demoapp_pg_rw pg_rw_pol.hcl
 
 Create a role for granting read-write creds to postgres:
 
-? - How do I attach a policy to this auth method to restrict access to the read-write postgres database secrets engine path?
+? - How do I attach a policy to this auth method to restrict access to the read-write postgres database secrets engine path? Use `token_policies` parameter.
 
 ```
 vault write auth/demoapp/role/pg_rw \
@@ -332,6 +332,10 @@ Code: 404. Errors:
         * unsupported path
 
 ```
+
+Note for further investigation...
+`auth/demoapp/role/pg_rw/login` is not the path to use to login. 
+`auth/demoapp/login` is the path to use to login. 
 
 ## Extra Credit: Secure Postgresql Root Password
 https://developer.hashicorp.com/vault/tutorials/db-credentials/database-root-rotation
