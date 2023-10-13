@@ -230,7 +230,7 @@ tee app.sh <<EOF
 cat <<EOT
 My connection info is:
 
-username: "\${DATABASE_CREDS_READONLY_USERNAME}"   <---- How does this handle role names with underscores?
+username: "\${DATABASE_CREDS_READONLY_USERNAME}" 
 password: "\${DATABASE_CREDS_READONLY_PASSWORD}"
 database: "demoapp"
 EOT
@@ -240,7 +240,7 @@ chmod +x app.sh
 
 Run envconsul to retrieve database credentials from the readonly role
 ```
-export VAULT_ADDR=http://127.0.0.1:8200  <---- 
+export VAULT_ADDR=http://127.0.0.1:8200 
 VAULT_TOKEN=$DB_TOKEN envconsul -upcase -secret database/creds/readonly ./app.sh
 ```
 
@@ -251,41 +251,9 @@ There are many ways to authenticate the Vault agent. The simplest is the token f
 From https://developer.hashicorp.com/vault/docs/agent-and-proxy/autoauth/methods/token_file
 
 ```
-pid_file = "./pidfile"
-
-vault {
-  address = "https://127.0.0.1:8200"
-}
-
-auto_auth {
-  method {
-    type = "token_file"
-
-    config = {
-      token_file_path = "/home/username/.vault-token"
-    }
-  }
-}
-
-api_proxy {
-  use_auto_auth_token = true
-}
-
-listener "tcp" {
-  address = "127.0.0.1:8100"
-  tls_disable = true
-}
-
-template {
-  source      = "/etc/vault/server.key.ctmpl"
-  destination = "/etc/vault/server.key"
-}
-
-template {
-  source      = "/etc/vault/server.crt.ctmpl"
-  destination = "/etc/vault/server.crt"
-}
+vault agent -config agent_token.hcl
 ```
+
 ## Extra Credit: Set up AppRole
 Enable the approle auth method
 ```
@@ -324,34 +292,20 @@ vault write -f auth/demoapp/role/pg_rw/secret-id
 
 ### Auto-auth with AppRole
 ```
-vault agent -config agent_approle.hcl  <---- Getting permission denied.
+echo '<secret-id>' > secretid
+vault agent -config agent_approle.hcl
 ```
 
-It was trying to access `http://127.0.0.1:8200/v1/auth/approle/login` rather than the path configured for the role-id. Need to specify path in the agent when customized auth engine path is used.
-
-Another error
-```
-vault write auth/demoapp/role/pg_rw/login role_id=007932a8-d695-b073-0d3e-db82ccfaf8eb secret_id=3e83e50b-e22d-e2b8-ca2c-3dded1d8e812
-Error writing data to auth/demoapp/role/pg_rw/login: Error making API request.
-
-URL: PUT http://127.0.0.1:8200/v1/auth/demoapp/role/pg_rw/login
-Code: 404. Errors:
-
-* 1 error occurred:
-        * unsupported path
-
-```
-
-Note for further investigation...
+Need to specify path in the agent when customized auth engine path is used.
 `auth/demoapp/role/pg_rw/login` is not the path to use to login. 
-`auth/demoapp/login` is the path to use to login. 
+`auth/demoapp/login` is the path to use to login. Unintuitively, Vault figures out which role to use based on the role-id.
 
 ## Extra Credit: Secure Postgresql Root Password
 https://developer.hashicorp.com/vault/tutorials/db-credentials/database-root-rotation
 
 The admin/root user's password will no longer be retrievable. Vault will cache and rotate it, but not return it for external use.
 
-Be sure to create a different superuser in the db and set it up in the Vault config for the database endpoint *first*. You may need to take steps like the following. 
+Be sure to create a different admin-type user in the db and set it up in the Vault config for the database endpoint *first*. You may need to take steps like the following. 
 
 From stack overflow (https://stackoverflow.com/a/53849271):
 
@@ -364,13 +318,7 @@ From stack overflow (https://stackoverflow.com/a/53849271):
 
     Don't give the new user any permissions on other databases or objects therein.
 
-I used these steps:
-```
-CREATE USER db_admin_vault CREATEROLE;
-ALTER USER db_admin_vault WITH PASSWORD 'insecure_password';
-ALTER DATABASE demoapp OWNER TO db_admin_vault;
-REVOKE CONNECT ON DATABASE demoapp FROM PUBLIC;
-```
+I used the steps in `createdb.sql`.
 
 Go through the steps above to verify that Vault can still create credentials.
 Sanity check from Vault
