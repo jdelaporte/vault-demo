@@ -1,7 +1,7 @@
 # vault-demo
 
 ## Database Credentials - Postgres
-[Dynamic DB Credential Management|https://github.com/jdelaporte/vault-demo/blob/main/dynamic_db.md]
+[ Dynamic DB Credential Management | https://github.com/jdelaporte/vault-demo/blob/main/dynamic_db.md ]
 
 The example sets up a database secret engine, with two postgresql roles - read-only and read-write.
 A couple of policies are created, to give the consultemplate, envconsul, and vault agent processes restricted access to Vault.
